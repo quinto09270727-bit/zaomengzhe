@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>造梦者</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style> body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: black; } canvas { display: block; } </style>
+</head>
+<body>
+  <script>
+// ============================================
+// 《造梦者》 最终完整版（含片头名字滚动背景）
+// ============================================
+
+let scene1Img, scene2Bg, scene2Boat;
+let scene3Bg;
+let frames = [];
+let scene4Bg;
+let buildingImgs = [];
+let scene4Snapshot;
+
+let state = 0;
+let stateStartFrame = 0;
+let alphaBg = 0;
+
+// 场景一
+let textIndex = 0;
+let currentLineAlpha = 0;
+let lineDelayTimer = 0;
+let lineFadeComplete = false;
+let charIndex = 0;
+let charTimer = 0;
+let btnAlpha = 0;
+let btnBreath = 0;
+let transitionRadius = 0;
+let btnX, btnY;
+let lineY1 = [];
+let s1TransBlack = 0;
+let btnScale = 1.0;
+let lines1 = [
+  "2014年1月7日，一位107岁的老人闭上了眼睛。",
+  "他叫邵逸夫，人们叫他六叔。",
+  "有人说，人临终前，一生的记忆会像电影一样闪回。",
+  "点击放映机，为他放映最后一场电影。"
+];
+
+// 片头
+let logoAlpha = 0;
+let logoRadius = 0;
+let logoLineLength = 0;
+let logoTextAlpha = 0;
+
+// 片头滚动名字
+let namesRow1 = ["林黛", "李丽华", "乐蒂", "凌波", "郑佩佩", "李小龙", "张国荣", "梅艳芳"];
+let namesRow2 = ["周润发", "梁朝伟", "张曼玉", "林青霞", "钟楚红", "刘德华", "周星驰", "成龙"];
+let nameSpacing = 90;
+let nameAlpha = 80;
+let row1Offsets = [];
+let nameFadeIn = 0;
+let nameFadeOut = 1.0;
+let namesStarted = false;
+
+// 场景二
+let boatX, boatY;
+let boatTargetX;
+let boatScaleVal = 0.28;
+let boatDrawW, boatDrawH;
+let scene2TextIndex = 0;
+let scene2TextAlpha = 0;
+let scene2TextTimer = 0;
+let scene2LineDone = false;
+let scene2FadeIn = 0;
+let transition2Radius = 0;
+let scene2TextDone = false;
+let s2TransBlack = 0;
+let boatSpeed = 0;
+let prevBoatX = 170;
+let ripples = [];
+
+let lines2 = [
+  "1926年，19岁的邵仁楞离开宁波，前往新加坡。",
+  "他和兄长只知道，要去南洋放电影。母亲往他手里塞了一包故土。",
+  "滑动屏幕，推他远航。"
+];
+
+class WaterRipple {
+  constructor(startX, startY) {
+    this.x = startX;
+    this.y = startY;
+    this.maxLife = 40;
+    this.life = this.maxLife;
+    this.size = 5;
+  }
+  update() { this.life--; this.size += 1.5; }
+  display() {
+    let alpha = map(this.life, 0, this.maxLife, 0, 100);
+    stroke(255, 220, 150, alpha);
+    strokeWeight(1.2);
+    noFill();
+    ellipse(this.x, this.y, this.size, this.size * 0.35);
+  }
+  isDead() { return this.life <= 0; }
+}
+
+// 场景三
+let s3FadeIn = 0;
+let s3TextIndex = 0;
+let s3TextAlpha = 0;
+let s3TextDelayTimer = 0;
+let s3TextLineDone = false;
+let s3Paused = false;
+let s3Selected = -1;
+let s3ZoomProgress = 0;
+let s3UnzoomProgress = 0;
+let s3ScrollTimer = 0;
+let s3TransRadius = 0;
+let s3TransX, s3TransY;
+let s3FrameH, s3FrameW;
+let s3Row1Y, s3Row2Y;
+let s3Spacing = 30;
+let s3BtnAlpha = 0;
+let s3BtnBreath = 0;
+let s3BtnX, s3BtnY;
+let s3BtnVisible = false;
+let s3TransBlack = 0;
+let s3BtnScale = 1.0;
+
+let scene3Lines = [
+  "他用半个世纪，为华人世界造了一个璀璨的梦。",
+  "点击胶片格，触碰他的记忆碎片。"
+];
+let s3TextY = [];
+
+let frameDescriptions = [
+  "黄梅调电影风靡东南亚，邵氏出品，必属佳片。",
+  "武侠世界刀光剑影，为华人观众构筑英雄梦。",
+  "邵氏片场日夜不歇，年产数十部电影的黄金时代。",
+  "霓虹灯下的都市传奇，邵氏镜头中的现代香港。",
+  "港姐选美万众瞩目，TVB开创娱乐新纪元。",
+  "港剧经典陪伴一代人成长，电视帝国崛起。",
+  "南洋是起点，也是他电影版图的第一站。",
+  "星光璀璨，他为华人电影留下了满天星辰。"
+];
+
+class FilmFrame {
+  constructor(img, x, y, w, h, speed, desc) {
+    this.img = img;
+    this.x = x;
+    this.y = y;
+    this.w = w;
+    this.h = h;
+    this.speed = speed;
+    this.desc = desc;
+  }
+}
+let filmFrames = [];
+
+// 场景四
+let s4FadeIn = 0;
+let s4TextIndex = 0;
+let s4TextAlpha = 0;
+let s4TextDelayTimer = 0;
+let s4TextLineDone = false;
+let s4GroundY;
+let s4PresetX = [];
+let buildings = [];
+
+let scene4Lines = [
+  "纵使身影已远，逸夫楼的钟声，依然回响在大江南北。",
+  "点击画面，为他点亮归航的路。"
+];
+let s4TextY = [];
+
+class Building {
+  constructor(index, xPos) {
+    this.img = buildingImgs[index];
+    this.x = xPos;
+    this.scaleVal = random(0.9, 1.1);
+    this.w = this.img.width * this.scaleVal * 0.18;
+    this.h = this.img.height * this.scaleVal * 0.18;
+    this.y = s4GroundY - this.h / 2;
+    this.glowAlpha = 180;
+    this.glowRadius = 30;
+  }
+  update() {
+    if (this.glowAlpha > 0) { this.glowAlpha -= 12; this.glowRadius += 8; if (this.glowAlpha < 0) this.glowAlpha = 0; }
+  }
+  display() {
+    if (this.glowAlpha > 0) {
+      blendMode(ADD);
+      for (let i = 0; i < 2; i++) { 
+        let r = this.glowRadius - i * 15; 
+        if (r > 0) { fill(255, 220, 150, this.glowAlpha * 0.35); noStroke(); ellipse(this.x, this.y, r * 2, r * 2); } 
+      }
+      blendMode(BLEND);
+    }
+    if (this.glowAlpha > 0) { 
+      let warmFactor = this.glowAlpha / 180.0; 
+      tint(255, 255 - warmFactor * 30, 255 - warmFactor * 80); 
+    } else { 
+      noTint(); 
+    }
+    imageMode(CENTER); 
+    image(this.img, this.x, this.y, this.w, this.h); 
+    imageMode(CORNER); 
+    noTint();
+  }
+}
+
+// 结尾
+let outroPhase = 0;
+let outroTimer = 0;
+let outroBlackAlpha = 0;
+let outroTextAlpha = 0;
+let outroTextIndex = 0;
+let outroTextLineDone = false;
+let outroTextDelay = 0;
+let outroLines = [
+  "他的电影，从未散场。",
+  "邵逸夫（1907-2014），宁波人，电影人，慈善家。",
+  "谢谢您，一同造梦。"
+];
+let outroTextY = [];
+
+// 状态常量
+const S1_BLACK = 0;
+const S1_LOGO = 18;
+const S1_TITLE = 1;
+const S1_FADEIN = 2;
+const S1_TEXT = 3;
+const S1_WAIT = 4;
+const S1_TRANS = 5;
+const S2_FADEIN = 6;
+const S2_TEXT = 7;
+const S2_INTERACT = 8;
+const S2_TRANS = 9;
+const S3_FADEIN = 10;
+const S3_TEXT = 11;
+const S3_SCROLL = 12;
+const S3_ZOOM = 13;
+const S3_UNZOOM = 20;
+const S3_TRANS = 14;
+const S4_FADEIN = 15;
+const S4_TEXT = 16;
+const S4_INTERACT = 17;
+const S5_OUTRO = 19;
+
+function preload() {
+  scene1Img = loadImage('scene1.jpg');
+  scene2Bg = loadImage('scene2_bg.jpg');
+  scene2Boat = loadImage('scene2_boat.png');
+  scene3Bg = loadImage('scene3_bg.jpg');
+  for (let i = 0; i < 8; i++) {
+    frames[i] = loadImage('scene3_frame_0' + (i + 1) + '.jpg');
+  }
+  scene4Bg = loadImage('scene4_bg.jpg');
+  for (let i = 0; i < 5; i++) {
+    buildingImgs[i] = loadImage('scene4_building_0' + (i + 1) + '.png');
+  }
+}
+
+function setup() {
+  createCanvas(1280, 720);
+  stateStartFrame = frameCount;
+  
+  btnX = width * 0.25;
+  btnY = height * 0.65;
+  lineY1 = [height * 0.32, height * 0.40, height * 0.48, height * 0.56];
+  
+  boatX = 170;
+  boatY = 506;
+  boatTargetX = boatX;
+  prevBoatX = boatX;
+  boatDrawW = width * boatScaleVal;
+  let boatAspect = scene2Boat.height / scene2Boat.width;
+  boatDrawH = boatDrawW * boatAspect;
+  
+  s3BtnX = width * 6 / 7;
+  s3BtnY = height * 0.55;
+  s3TextY = [height * 0.12, height * 0.18];
+  
+  s3FrameH = height * 0.2;
+  s3FrameW = s3FrameH * 1.5;
+  s3Row1Y = height * 0.28;
+  s3Row2Y = height * 0.63;
+  
+  let totalW = s3FrameW * 4 + s3Spacing * 3;
+  let startX = (width - totalW) / 2;
+  
+  for (let i = 0; i < 4; i++) {
+    filmFrames[i] = new FilmFrame(frames[i], startX + i * (s3FrameW + s3Spacing), s3Row1Y, s3FrameW, s3FrameH, 2.4, frameDescriptions[i]);
+    filmFrames[i + 8] = new FilmFrame(frames[i], startX + (i + 4) * (s3FrameW + s3Spacing), s3Row1Y, s3FrameW, s3FrameH, 2.4, frameDescriptions[i]);
+    filmFrames[i + 4] = new FilmFrame(frames[i + 4], startX + i * (s3FrameW + s3Spacing), s3Row2Y, s3FrameW, s3FrameH, 1.6, frameDescriptions[i + 4]);
+    filmFrames[i + 12] = new FilmFrame(frames[i + 4], startX + (i + 4) * (s3FrameW + s3Spacing), s3Row2Y, s3FrameW, s3FrameH, 1.6, frameDescriptions[i + 4]);
+  }
+  
+  s4GroundY = height * 1.3;
+  s4TextY = [height * 0.07, height * 0.14];
+  let s4Margin = width * 0.05;
+  let s4Step = (width - s4Margin * 2) / 9;
+  for (let i = 0; i < 10; i++) s4PresetX[i] = s4Margin + i * s4Step;
+  
+  outroTextY = [height * 0.38, height * 0.48, height * 0.58];
+  
+  // 初始化上排名字随机高度偏移
+  for (let i = 0; i < namesRow1.length; i++) {
+    row1Offsets[i] = random(-4, 4);
+  }
+  
+  textFont('serif');
+}
+
+function draw() {
+  background(0);
+  imageMode(CORNER);
+  
+  if (btnScale < 1.0) { btnScale = lerp(btnScale, 1.0, 0.3); if (btnScale > 0.99) btnScale = 1.0; }
+  if (s3BtnScale < 1.0) { s3BtnScale = lerp(s3BtnScale, 1.0, 0.3); if (s3BtnScale > 0.99) s3BtnScale = 1.0; }
+  
+  switch (state) {
+    case S1_BLACK: drawS1Black(); break;
+    case S1_LOGO: drawS1Logo(); break;
+    case S1_TITLE: drawS1Title(); break;
+    case S1_FADEIN: drawS1FadeIn(); break;
+    case S1_TEXT: drawS1Text(); break;
+    case S1_WAIT: drawS1Wait(); break;
+    case S1_TRANS: drawS1Trans(); break;
+    case S2_FADEIN: drawS2FadeIn(); break;
+    case S2_TEXT: drawS2Text(); break;
+    case S2_INTERACT: drawS2Interact(); break;
+    case S2_TRANS: drawS2Trans(); break;
+    case S3_FADEIN: drawS3FadeIn(); break;
+    case S3_TEXT: drawS3Text(); break;
+    case S3_SCROLL: drawS3Scroll(); break;
+    case S3_ZOOM: drawS3Zoom(); break;
+    case S3_UNZOOM: drawS3Unzoom(); break;
+    case S3_TRANS: drawS3Trans(); break;
+    case S4_FADEIN: drawS4FadeIn(); break;
+    case S4_TEXT: drawS4Text(); break;
+    case S4_INTERACT: drawS4Interact(); break;
+    case S5_OUTRO: drawS5Outro(); break;
+  }
+  
+  // 电影质感滤镜
+  noStroke();
+  fill(35, 22, 12, 18);
+  rect(0, 0, width, height);
+  for (let i = 0; i < 80; i++) {
+    let nx = random(width);
+    let ny = random(height);
+    let na = random(8, 25);
+    stroke(255, 240, 220, na);
+    strokeWeight(1);
+    point(nx, ny);
+  }
+  noStroke();
+}
+
+function touchStarted() {
+  mousePressed();
+  return false;
+}
+
+function touchMoved() {
+  if (state === S2_INTERACT) {
+    boatTargetX = constrain(mouseX, width * 0.1, width * 0.8);
+  }
+  return false;
+}
+
+// ==================== 片头动画（含名字滚动背景） ====================
+function drawS1Logo() {
+  background(0);
+  let elapsed = frameCount - stateStartFrame;
+  
+  // --- 名字淡入控制 ---
+  if (elapsed > 30 && !namesStarted) {
+    namesStarted = true;
+  }
+  if (namesStarted && nameFadeIn < 1.0) {
+    nameFadeIn += 0.025;
+    if (nameFadeIn > 1.0) nameFadeIn = 1.0;
+  }
+  
+  // --- 名字消散控制 ---
+  if (elapsed > 180) {
+    nameFadeOut = map(elapsed, 180, 220, 1.0, 0);
+    if (nameFadeOut < 0) nameFadeOut = 0;
+  } else {
+    nameFadeOut = 1.0;
+  }
+  
+  let currentNameAlpha = nameFadeIn * nameFadeOut * nameAlpha;
+
+  // --- 滚动名字背景 ---
+  let y1 = height * 0.25;
+  let y2 = height * 0.75;
+  let totalWidth1 = nameSpacing * namesRow1.length;
+  let totalWidth2 = nameSpacing * namesRow2.length;
+
+  // 上排：左 -> 右（带高度差）
+  let offset1 = (frameCount * 1.2) % totalWidth1;
+  fill(255, 200, 100, currentNameAlpha);
+  textSize(20);
+  textAlign(LEFT, CENTER);
+  for (let i = 0; i < namesRow1.length; i++) {
+    let baseX = -nameSpacing + i * nameSpacing + offset1;
+    let thisY = y1 + row1Offsets[i];
+    for (let k = -2; k <= 2; k++) {
+      text(namesRow1[i], baseX + k * totalWidth1, thisY);
+    }
+  }
+
+  // 下排：右 -> 左
+  let offset2 = (frameCount * 0.8) % totalWidth2;
+  fill(255, 200, 100, currentNameAlpha * 0.85);
+  textSize(18);
+  for (let i = 0; i < namesRow2.length; i++) {
+    let baseX = width + nameSpacing * i - offset2;
+    for (let k = -2; k <= 2; k++) {
+      text(namesRow2[i], baseX + k * totalWidth2, y2);
+    }
+  }
+
+  // --- 光点/光线/标题动画 ---
+  let breathe = sin(frameCount * 0.025) * 2;
+
+  if (elapsed < 60) {
+    logoAlpha = map(elapsed, 0, 30, 0, 255);
+    logoRadius = map(elapsed, 0, 60, 0, 8);
+    fill(255, 220, 150, logoAlpha);
+    noStroke();
+    ellipse(width / 2, height / 2, logoRadius * 2, logoRadius * 2);
+  } else if (elapsed < 120) {
+    logoAlpha = 255;
+    logoRadius = 8;
+    logoLineLength = map(elapsed, 60, 120, 0, 300);
+    fill(255, 220, 150, logoAlpha);
+    noStroke();
+    ellipse(width / 2, height / 2, logoRadius * 2, logoRadius * 2);
+    stroke(255, 220, 150, logoAlpha);
+    strokeWeight(2);
+    line(width / 2 - logoLineLength, height / 2, width / 2 + logoLineLength, height / 2);
+    noStroke();
+  } else if (elapsed < 200) {
+    logoLineLength = map(elapsed, 120, 180, 300, 0);
+    logoTextAlpha = map(elapsed, 150, 200, 0, 255);
+    logoAlpha = map(elapsed, 180, 200, 255, 0);
+    
+    if (logoAlpha > 0) {
+      stroke(255, 220, 150, logoAlpha);
+      strokeWeight(2);
+      line(width / 2 - logoLineLength, height / 2, width / 2 + logoLineLength, height / 2);
+      noStroke();
+    }
+    fill(255, 200, 100, logoTextAlpha);
+    textAlign(CENTER, CENTER);
+    textSize(88 + breathe);
+    text("造梦者", width / 2, height / 2);
+  } else {
+    fill(255, 200, 100, 255);
+    textAlign(CENTER, CENTER);
+    textSize(88 + breathe);
+    text("造梦者", width / 2, height / 2);
+    
+    if (elapsed > 240) {
+      state = S1_TITLE;
+      stateStartFrame = frameCount;
+      nameFadeIn = 0;
+      nameFadeOut = 1.0;
+      namesStarted = false;
+    }
+  }
+}
+
+// ==================== 场景一 ====================
+function drawS1Black() { background(0); if (frameCount - stateStartFrame > 30) { state = S1_LOGO; stateStartFrame = frameCount; } }
+function drawS1Title() {
+  background(0);
+  let elapsed = frameCount - stateStartFrame;
+  let alpha;
+  let breathe = sin(frameCount * 0.025) * 2;
+  if (elapsed < 60) alpha = 255;
+  else if (elapsed < 120) alpha = map(elapsed, 60, 120, 255, 0);
+  else { state = S1_FADEIN; stateStartFrame = frameCount; alphaBg = 0; return; }
+  fill(255, 200, 100, alpha);
+  textAlign(CENTER, CENTER);
+  textSize(88 + breathe);
+  text("造梦者", width / 2, height / 2);
+}
+function drawS1FadeIn() {
+  background(0);
+  alphaBg = min(alphaBg + 4, 255);
+  tint(255, alphaBg);
+  image(scene1Img, 0, 0, width, height);
+  noTint();
+  if (alphaBg >= 255) { state = S1_TEXT; stateStartFrame = frameCount; textIndex = 0; charIndex = 0; charTimer = 0; currentLineAlpha = 0; lineFadeComplete = false; lineDelayTimer = 0; }
+}
+function drawS1Text() {
+  tint(255, 255);
+  image(scene1Img, 0, 0, width, height);
+  noTint();
+  
+  for (let i = 0; i < textIndex; i++) {
+    drawS1SubtitleFull(lines1[i], 255, lineY1[i]);
+  }
+  
+  if (textIndex < lines1.length) {
+    if (charIndex < lines1[textIndex].length) {
+      charTimer++;
+      if (charTimer > 2) { charIndex++; charTimer = 0; }
+      let partialText = lines1[textIndex].substring(0, charIndex);
+      drawS1SubtitleFull(partialText, 255, lineY1[textIndex]);
+    } else {
+      drawS1SubtitleFull(lines1[textIndex], 255, lineY1[textIndex]);
+      lineDelayTimer++;
+      if (lineDelayTimer > 30) { textIndex++; charIndex = 0; charTimer = 0; lineDelayTimer = 0; if (textIndex >= lines1.length) { state = S1_WAIT; stateStartFrame = frameCount; btnAlpha = 0; btnBreath = 0; } }
+    }
+  }
+}
+function drawS1Wait() {
+  tint(255, 255);
+  image(scene1Img, 0, 0, width, height);
+  noTint();
+  
+  for (let i = 0; i < 3; i++) {
+    drawS1SubtitleFull(lines1[i], 255, lineY1[i]);
+  }
+  drawS1SubtitleFull(lines1[3], 255, lineY1[3]);
+  
+  btnBreath += 0.05;
+  let breathVal = sin(btnBreath) * 0.3 + 0.7;
+  btnAlpha = breathVal * 255;
+  drawBreathingButton(btnX, btnY, btnAlpha);
+}
+function drawS1Trans() {
+  tint(255, 255);
+  image(scene1Img, 0, 0, width, height);
+  noTint();
+  
+  transitionRadius += 22;
+  let tAlpha = map(transitionRadius, 0, max(width, height) * 0.8, 255, 0);
+  blendMode(ADD);
+  for (let i = 0; i < 3; i++) {
+    let r = transitionRadius - i * 80;
+    if (r > 0) {
+      fill(255, 200, 100, tAlpha * 0.3);
+      noStroke();
+      ellipse(btnX, btnY, r * 2, r * 2);
+    }
+  }
+  blendMode(BLEND);
+  
+  if (transitionRadius > max(width, height) * 0.8) {
+    s1TransBlack = min(s1TransBlack + 35, 255);
+  }
+  if (s1TransBlack > 0) {
+    fill(0, s1TransBlack);
+    rect(0, 0, width, height);
+  }
+  if (s1TransBlack >= 255) {
+    state = S2_FADEIN;
+    stateStartFrame = frameCount;
+    scene2FadeIn = 0;
+    scene2TextIndex = 0;
+    scene2TextAlpha = 0;
+    scene2TextTimer = 0;
+    scene2LineDone = false;
+    scene2TextDone = false;
+    boatX = 170;
+    boatTargetX = boatX;
+    prevBoatX = boatX;
+    ripples = [];
+    s1TransBlack = 0;
+  }
+}
+function drawS1SubtitleFull(txt, alpha, y) {
+  fill(20, 30, 60, alpha);
+  noStroke();
+  textAlign(LEFT, CENTER);
+  textSize(28);
+  text(txt, width * 0.48, y);
+}
+function drawBreathingButton(x, y, alpha) {
+  push();
+  translate(x, y);
+  scale(btnScale);
+  let ringAngle = frameCount * 0.03;
+  noFill();
+  stroke(255, 200, 100, alpha * 0.35);
+  strokeWeight(2.5);
+  strokeCap(SQUARE);
+  arc(0, 0, 85, 85, ringAngle, ringAngle + PI * 1.2);
+  arc(0, 0, 85, 85, ringAngle + PI, ringAngle + PI * 2.2);
+  noFill();
+  stroke(255, 200, 100, alpha * 0.4);
+  strokeWeight(3);
+  let haloSize = 72 + sin(btnBreath) * 12;
+  ellipse(0, 0, haloSize, haloSize);
+  fill(255, 180, 60, alpha);
+  noStroke();
+  ellipse(0, 0, 48, 48);
+  fill(255, 255, 220, alpha);
+  ellipse(-8, -8, 14, 14);
+  pop();
+}
+
+// ==================== 场景二 ====================
+function drawS2FadeIn() {
+  background(0);
+  scene2FadeIn = min(scene2FadeIn + 4, 255);
+  tint(255, scene2FadeIn);
+  image(scene2Bg, 0, 0, width, height);
+  imageMode(CENTER);
+  image(scene2Boat, boatX, boatY, boatDrawW, boatDrawH);
+  imageMode(CORNER);
+  noTint();
+  if (scene2FadeIn >= 255) { state = S2_TEXT; stateStartFrame = frameCount; }
+}
+function drawS2Text() {
+  tint(255, 255);
+  image(scene2Bg, 0, 0, width, height);
+  imageMode(CENTER);
+  image(scene2Boat, boatX, boatY, boatDrawW, boatDrawH);
+  imageMode(CORNER);
+  noTint();
+  
+  for (let i = 0; i < scene2TextIndex; i++) {
+    drawScene2Subtitle(lines2[i], 255, i);
+  }
+  
+  if (scene2TextIndex < lines2.length) {
+    if (!scene2LineDone) {
+      scene2TextAlpha = min(scene2TextAlpha + 8, 255);
+      drawScene2Subtitle(lines2[scene2TextIndex], scene2TextAlpha, scene2TextIndex);
+      if (scene2TextAlpha >= 255) { scene2LineDone = true; scene2TextTimer = 0; }
+    } else {
+      drawScene2Subtitle(lines2[scene2TextIndex], 255, scene2TextIndex);
+      scene2TextTimer++;
+      if (scene2TextTimer > 30) { scene2TextIndex++; scene2TextAlpha = 0; scene2LineDone = false; scene2TextTimer = 0; if (scene2TextIndex >= lines2.length) { scene2TextDone = true; state = S2_INTERACT; stateStartFrame = frameCount; } }
+    }
+  }
+}
+function drawScene2Subtitle(txt, alpha, index) {
+  fill(20, 30, 60, alpha);
+  noStroke();
+  textAlign(CENTER, CENTER);
+  textSize(26);
+  let y = height * 0.12 + index * 50;
+  text(txt, width * 0.5, y);
+}
+function drawS2Interact() {
+  tint(255, 255);
+  image(scene2Bg, 0, 0, width, height);
+  noTint();
+  
+  let oldBoatX = boatX;
+  let easing = 0.08;
+  boatX += (boatTargetX - boatX) * easing;
+  boatSpeed = abs(boatX - oldBoatX);
+  prevBoatX = oldBoatX;
+  
+  if (boatSpeed > 0.3) {
+    let spawnX = boatX - boatDrawW / 2 + random(-5, 5);
+    let spawnY = boatY + boatDrawH / 2 + random(-8, 8);
+    ripples.push(new WaterRipple(spawnX, spawnY));
+    if (boatSpeed > 2.0) {
+      ripples.push(new WaterRipple(spawnX + random(-20, 20), spawnY + random(-5, 5)));
+    }
+  }
+  
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    let r = ripples[i];
+    r.update();
+    r.display();
+    if (r.isDead()) { ripples.splice(i, 1); }
+  }
+  
+  imageMode(CENTER);
+  image(scene2Boat, boatX, boatY, boatDrawW, boatDrawH);
+  imageMode(CORNER);
+  
+  for (let i = 0; i < 2; i++) { drawScene2Subtitle(lines2[i], 180, i); }
+  drawScene2Subtitle(lines2[2], 200, 2);
+  
+  if (boatX > width * 0.5) { state = S2_TRANS; stateStartFrame = frameCount; transition2Radius = 0; s2TransBlack = 0; }
+}
+function drawS2Trans() {
+  tint(255, 255);
+  image(scene2Bg, 0, 0, width, height);
+  imageMode(CENTER);
+  image(scene2Boat, boatX, boatY, boatDrawW, boatDrawH);
+  imageMode(CORNER);
+  noTint();
+  
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    let r = ripples[i];
+    r.update();
+    r.display();
+    if (r.isDead()) { ripples.splice(i, 1); }
+  }
+  
+  transition2Radius += 20;
+  let tAlpha = map(transition2Radius, 0, max(width, height) * 0.8, 200, 0);
+  blendMode(ADD);
+  for (let i = 0; i < 3; i++) {
+    let r = transition2Radius - i * 60;
+    if (r > 0) {
+      fill(200, 180, 255, tAlpha * 0.25);
+      noStroke();
+      ellipse(width * 0.55, height * 0.6, r * 2, r * 0.8);
+    }
+  }
+  blendMode(BLEND);
+  
+  if (transition2Radius > max(width, height) * 0.8) { s2TransBlack = min(s2TransBlack + 35, 255); }
+  if (s2TransBlack > 0) { fill(0, s2TransBlack); rect(0, 0, width, height); }
+  if (s2TransBlack >= 255) {
+    state = S3_FADEIN;
+    stateStartFrame = frameCount;
+    s3FadeIn = 0; s3TextIndex = 0; s3TextAlpha = 0; s3TextDelayTimer = 0; s3TextLineDone = false;
+    s3Paused = false; s3Selected = -1; s3ScrollTimer = 0; s3BtnVisible = false; s3BtnAlpha = 0; s3BtnBreath = 0;
+    let totalW = s3FrameW * 4 + s3Spacing * 3;
+    let startX = (width - totalW) / 2;
+    for (let i = 0; i < 4; i++) {
+      filmFrames[i].x = startX + i * (s3FrameW + s3Spacing);
+      filmFrames[i].y = s3Row1Y;
+      filmFrames[i + 4].x = startX + i * (s3FrameW + s3Spacing);
+      filmFrames[i + 4].y = s3Row2Y;
+      filmFrames[i + 8].x = startX + (i + 4) * (s3FrameW + s3Spacing);
+      filmFrames[i + 8].y = s3Row1Y;
+      filmFrames[i + 12].x = startX + (i + 4) * (s3FrameW + s3Spacing);
+      filmFrames[i + 12].y = s3Row2Y;
+    }
+    s2TransBlack = 0;
+  }
+}
+
+// ==================== 场景三 ====================
+function drawS3FadeIn() {
+  s3FadeIn = min(s3FadeIn + 4, 255);
+  tint(255, s3FadeIn);
+  image(scene3Bg, 0, 0, width, height);
+  for (let f of filmFrames) { tint(255, s3FadeIn); image(f.img, f.x, f.y, f.w, f.h); }
+  noTint();
+  if (s3FadeIn >= 255) { state = S3_TEXT; stateStartFrame = frameCount; s3TextIndex = 0; s3TextAlpha = 0; s3TextLineDone = false; s3TextDelayTimer = 0; }
+}
+function drawS3Text() {
+  tint(255, 255);
+  image(scene3Bg, 0, 0, width, height);
+  for (let f of filmFrames) { tint(255, 255); image(f.img, f.x, f.y, f.w, f.h); }
+  noTint();
+  for (let i = 0; i < s3TextIndex; i++) { drawS3TextLine(scene3Lines[i], 255, s3TextY[i]); }
+  if (s3TextIndex < 2) {
+    if (!s3TextLineDone) {
+      s3TextAlpha = min(s3TextAlpha + 8, 255);
+      drawS3TextLine(scene3Lines[s3TextIndex], s3TextAlpha, s3TextY[s3TextIndex]);
+      if (s3TextAlpha >= 255) { s3TextLineDone = true; s3TextDelayTimer = 0; }
+    } else {
+      drawS3TextLine(scene3Lines[s3TextIndex], 255, s3TextY[s3TextIndex]);
+      s3TextDelayTimer++;
+      if (s3TextDelayTimer > 30) { s3TextIndex++; s3TextAlpha = 0; s3TextLineDone = false; s3TextDelayTimer = 0; if (s3TextIndex >= 2) { state = S3_SCROLL; stateStartFrame = frameCount; s3ScrollTimer = 0; } }
+    }
+  }
+}
+function drawS3TextLine(txt, alpha, y) { fill(255, 220, 150, alpha); textAlign(CENTER, CENTER); textSize(26); text(txt, width / 2, y); }
+function drawS3Scroll() {
+  tint(255, 255);
+  image(scene3Bg, 0, 0, width, height);
+  if (!s3Paused) {
+    for (let f of filmFrames) { f.x -= f.speed; if (f.x + f.w < 0) f.x += (s3FrameW + s3Spacing) * 8; }
+    s3ScrollTimer++;
+  }
+  for (let i = 0; i < filmFrames.length; i++) {
+    if (i === s3Selected && s3Paused) continue;
+    tint(255, 255); image(filmFrames[i].img, filmFrames[i].x, filmFrames[i].y, filmFrames[i].w, filmFrames[i].h);
+  }
+  noTint();
+  for (let i = 0; i < 2; i++) { drawS3TextLine(scene3Lines[i], 200, s3TextY[i]); }
+  if (state === S3_SCROLL) {
+    if (s3ScrollTimer > 60 * 3 && !s3BtnVisible) { s3BtnVisible = true; s3BtnAlpha = 0; s3BtnBreath = 0; }
+    if (s3BtnVisible) {
+      s3BtnBreath += 0.05;
+      let breathVal = sin(s3BtnBreath) * 0.3 + 0.7;
+      s3BtnAlpha = breathVal * 255;
+      drawS3BreathingButton(s3BtnX, s3BtnY, s3BtnAlpha);
+    }
+  }
+}
+function drawS3BreathingButton(x, y, alpha) {
+  push();
+  translate(x, y);
+  scale(s3BtnScale);
+  noFill();
+  stroke(255, 200, 100, alpha * 0.4);
+  strokeWeight(3);
+  let haloSize = 55 + sin(s3BtnBreath) * 10;
+  ellipse(0, 0, haloSize, haloSize);
+  fill(255, 180, 60, alpha);
+  noStroke();
+  ellipse(0, 0, 36, 36);
+  fill(255, 255, 220, alpha);
+  ellipse(-6, -6, 10, 10);
+  pop();
+}
+function drawS3Zoom() {
+  tint(255, 150);
+  image(scene3Bg, 0, 0, width, height);
+  for (let i = 0; i < filmFrames.length; i++) { if (i === s3Selected) continue; tint(255, 100); image(filmFrames[i].img, filmFrames[i].x, filmFrames[i].y, filmFrames[i].w, filmFrames[i].h); }
+  if (s3Selected >= 0) {
+    let sel = filmFrames[s3Selected];
+    let targetW = width * 0.6;
+    let targetH = targetW / 1.5;
+    let targetX = (width - targetW) / 2;
+    let targetY = (height - targetH) / 2;
+    s3ZoomProgress = min(s3ZoomProgress + 0.1, 1.0);
+    let curW = lerp(sel.w, targetW, s3ZoomProgress);
+    let curH = lerp(sel.h, targetH, s3ZoomProgress);
+    let curX = lerp(sel.x, targetX, s3ZoomProgress);
+    let curY = lerp(sel.y, targetY, s3ZoomProgress);
+    tint(255, 255); image(sel.img, curX, curY, curW, curH); noTint();
+    if (s3ZoomProgress > 0.8) { fill(255, 240, 200); textAlign(CENTER, CENTER); textSize(22); text(sel.desc, width / 2, targetY + curH + 40); }
+  }
+}
+function drawS3Unzoom() {
+  tint(255, 150);
+  image(scene3Bg, 0, 0, width, height);
+  for (let i = 0; i < filmFrames.length; i++) { if (i === s3Selected) continue; tint(255, 100); image(filmFrames[i].img, filmFrames[i].x, filmFrames[i].y, filmFrames[i].w, filmFrames[i].h); }
+  if (s3Selected >= 0) {
+    let sel = filmFrames[s3Selected];
+    let targetW = width * 0.6; let targetH = targetW / 1.5; let targetX = (width - targetW) / 2; let targetY = (height - targetH) / 2;
+    s3UnzoomProgress = min(s3UnzoomProgress + 0.12, 1.0);
+    let curW = lerp(targetW, sel.w, s3UnzoomProgress); let curH = lerp(targetH, sel.h, s3UnzoomProgress); let curX = lerp(targetX, sel.x, s3UnzoomProgress); let curY = lerp(targetY, sel.y, s3UnzoomProgress);
+    tint(255, 255); image(sel.img, curX, curY, curW, curH); noTint();
+    if (s3UnzoomProgress >= 1.0) { s3Paused = false; s3Selected = -1; s3ZoomProgress = 0; s3UnzoomProgress = 0; state = S3_SCROLL; }
+  }
+}
+function drawS3Trans() {
+  if (s3Selected >= 0) { drawS3Zoom(); } else { drawS3Scroll(); }
+  s3TransRadius += 22;
+  let tAlpha = map(s3TransRadius, 0, max(width, height) * 0.8, 255, 0);
+  blendMode(ADD);
+  for (let i = 0; i < 3; i++) {
+    let r = s3TransRadius - i * 80;
+    if (r > 0) { fill(255, 220, 150, tAlpha * 0.3); noStroke(); ellipse(s3TransX, s3TransY, r * 2, r * 2); }
+  }
+  blendMode(BLEND);
+  if (s3TransRadius > max(width, height) * 0.8) { s3TransBlack = min(s3TransBlack + 35, 255); }
+  if (s3TransBlack > 0) { fill(0, s3TransBlack); rect(0, 0, width, height); }
+  if (s3TransBlack >= 255) {
+    state = S4_FADEIN; stateStartFrame = frameCount;
+    s4FadeIn = 0; s4TextIndex = 0; s4TextAlpha = 0; s4TextDelayTimer = 0; s4TextLineDone = false;
+    buildings = []; s3TransBlack = 0;
+  }
+}
+
+// ==================== 场景四 ====================
+function drawS4FadeIn() {
+  s4FadeIn = min(s4FadeIn + 4, 255);
+  tint(255, s4FadeIn);
+  image(scene4Bg, 0, 0, width, height);
+  noTint();
+  if (s4FadeIn >= 255) { state = S4_TEXT; stateStartFrame = frameCount; s4TextIndex = 0; s4TextAlpha = 0; s4TextLineDone = false; s4TextDelayTimer = 0; }
+}
+function drawS4Text() {
+  tint(255, 255);
+  image(scene4Bg, 0, 0, width, height);
+  noTint();
+  for (let i = 0; i < s4TextIndex; i++) { drawS4TextLine(scene4Lines[i], 255, s4TextY[i]); }
+  if (s4TextIndex < 2) {
+    if (!s4TextLineDone) {
+      s4TextAlpha = min(s4TextAlpha + 8, 255);
+      drawS4TextLine(scene4Lines[s4TextIndex], s4TextAlpha, s4TextY[s4TextIndex]);
+      if (s4TextAlpha >= 255) { s4TextLineDone = true; s4TextDelayTimer = 0; }
+    } else {
+      drawS4TextLine(scene4Lines[s4TextIndex], 255, s4TextY[s4TextIndex]);
+      s4TextDelayTimer++;
+      if (s4TextDelayTimer > 30) { s4TextIndex++; s4TextAlpha = 0; s4TextLineDone = false; s4TextDelayTimer = 0; if (s4TextIndex >= 2) { state = S4_INTERACT; stateStartFrame = frameCount; } }
+    }
+  }
+}
+function drawS4TextLine(txt, alpha, y) { fill(80, 40, 20, alpha); textAlign(CENTER, CENTER); textSize(26); text(txt, width / 2, y); }
+function drawS4Interact() {
+  tint(255, 255);
+  image(scene4Bg, 0, 0, width, height);
+  noTint();
+  for (let b of buildings) b.update();
+  for (let b of buildings) b.display();
+  drawS4TextLine(scene4Lines[0], 200, s4TextY[0]);
+  drawS4TextLine(scene4Lines[1], 200, s4TextY[1]);
+  let remaining = 10 - buildings.length;
+  if (remaining > 0) { fill(80, 40, 20, 180); textAlign(CENTER, CENTER); textSize(18); text("还可以点亮 " + remaining + " 栋逸夫楼", width / 2, height * 0.92); }
+  if (buildings.length >= 10 && state === S4_INTERACT) {
+    if (frameCount - stateStartFrame > 60) {
+      scene4Snapshot = get();
+      state = S5_OUTRO;
+      stateStartFrame = frameCount;
+      outroPhase = 0; outroTimer = 0; outroBlackAlpha = 0; outroTextAlpha = 0; outroTextIndex = 0; outroTextLineDone = false; outroTextDelay = 0;
+    }
+  }
+}
+function nextBuildingIndex() { return buildings.length % 5; }
+
+// ==================== 结尾动画 ====================
+function drawS5Outro() {
+  if (outroPhase === 0) {
+    if (scene4Snapshot != null) { image(scene4Snapshot, 0, 0); }
+    outroBlackAlpha = min(outroBlackAlpha + 3, 255);
+    fill(0, outroBlackAlpha);
+    noStroke();
+    rect(0, 0, width, height);
+    if (outroBlackAlpha >= 255) { outroPhase = 1; outroTextIndex = 0; outroTextAlpha = 0; outroTextLineDone = false; outroTextDelay = 0; }
+    return;
+  }
+  background(0);
+  switch (outroPhase) {
+    case 1:
+      for (let i = 0; i < outroTextIndex; i++) { drawOutroTextLine(outroLines[i], 255, outroTextY[i]); }
+      if (outroTextIndex < 3) {
+        if (!outroTextLineDone) {
+          outroTextAlpha = min(outroTextAlpha + 8, 255);
+          drawOutroTextLine(outroLines[outroTextIndex], outroTextAlpha, outroTextY[outroTextIndex]);
+          if (outroTextAlpha >= 255) { outroTextLineDone = true; outroTextDelay = 0; }
+        } else {
+          drawOutroTextLine(outroLines[outroTextIndex], 255, outroTextY[outroTextIndex]);
+          outroTextDelay++;
+          if (outroTextDelay > 90) { outroTextIndex++; outroTextAlpha = 0; outroTextLineDone = false; outroTextDelay = 0; if (outroTextIndex >= 3) { outroPhase = 2; outroTextAlpha = 255; } }
+        }
+      }
+      break;
+    case 2:
+      outroTextAlpha = max(outroTextAlpha - 2, 0);
+      for (let i = 0; i < 3; i++) { drawOutroTextLine(outroLines[i], outroTextAlpha, outroTextY[i]); }
+      if (outroTextAlpha <= 0) { noLoop(); }
+      break;
+  }
+}
+function drawOutroTextLine(txt, alpha, y) { fill(255, 220, 150, alpha); textAlign(CENTER, CENTER); textSize(30); text(txt, width / 2, y); }
+
+// ==================== 交互 ====================
+function mousePressed() {
+  if (state === S1_WAIT) {
+    let d = dist(mouseX, mouseY, btnX, btnY);
+    if (d < 60) { btnScale = 0.8; state = S1_TRANS; stateStartFrame = frameCount; transitionRadius = 0; s1TransBlack = 0; }
+  }
+  if (state === S3_SCROLL) {
+    if (s3BtnVisible) {
+      let d = dist(mouseX, mouseY, s3BtnX, s3BtnY);
+      if (d < 40) { s3BtnScale = 0.8; s3BtnVisible = false; state = S3_TRANS; stateStartFrame = frameCount; s3TransRadius = 0; s3TransX = s3BtnX; s3TransY = s3BtnY; s3TransBlack = 0; return; }
+    }
+    for (let i = 0; i < filmFrames.length; i++) {
+      let f = filmFrames[i];
+      if (mouseX > f.x && mouseX < f.x + f.w && mouseY > f.y && mouseY < f.y + f.h) { s3Paused = true; s3Selected = i; s3ZoomProgress = 0; state = S3_ZOOM; break; }
+    }
+  } else if (state === S3_ZOOM) { s3UnzoomProgress = 0; state = S3_UNZOOM; }
+  if (state === S4_INTERACT && buildings.length < 10) {
+    let index = nextBuildingIndex();
+    let xPos = s4PresetX[buildings.length];
+    let newB = new Building(index, xPos);
+    buildings.push(newB);
+  }
+}
+function mouseDragged() { if (state === S2_INTERACT) { boatTargetX = constrain(mouseX, width * 0.1, width * 0.8); } }
+  </script>
+</body>
+</html>
